@@ -207,16 +207,59 @@ class CRMLegalApp:
             img = Image.open(logo_path); w, h = img.size; new_w = 220; new_h = int(h * (new_w / w)); img = img.resize((new_w, new_h), Image.Resampling.LANCZOS); self.logo_image_tk = ImageTk.PhotoImage(img); logo_label = ttk.Label(logo_frame, image=self.logo_image_tk); logo_label.grid(row=0, column=0)
         except Exception as e:
             ttk.Label(logo_frame, text="Legal-IT-Ø").pack(pady=20); print(f"Error al cargar el logo: {e}")
-        cal_frame = ttk.LabelFrame(col2_frame, text="Calendario", padding=5); cal_frame.grid(row=1, column=0, sticky='nsew', pady=5); cal_frame.columnconfigure(0, weight=1); cal_frame.rowconfigure(0, weight=1); self.agenda_cal = Calendar(cal_frame, selectmode='day', date_pattern='y-mm-dd', locale='es_ES'); self.agenda_cal.grid(row=0, column=0, sticky='nsew', padx=5, pady=5); self.agenda_cal.bind("<<CalendarSelected>>", self.actualizar_lista_audiencias); self.agenda_cal.tag_config('audiencia_marcador', background='lightblue', foreground='black')
-        add_aud_frame = ttk.Frame(col2_frame); add_aud_frame.grid(row=2, column=0, sticky='ew', pady=(5, 0)); self.add_audiencia_btn = ttk.Button(add_aud_frame, text="Agregar Audiencia", command=lambda: self.abrir_dialogo_audiencia(), state=tk.DISABLED); self.add_audiencia_btn.pack(fill=tk.X, padx=10, pady=5)
+
+        # --- Frame para botones de Scraping ---
+        scrap_buttons_frame = ttk.Frame(col2_frame)
+        scrap_buttons_frame.grid(row=1, column=0, sticky='ew', pady=5) # Ubicado debajo del logo
+        self.scrap_scba_btn = ttk.Button(scrap_buttons_frame, text="Scrap SCBA", command=lambda: messagebox.showinfo("Info", "Funcionalidad Scrap SCBA no implementada."))
+        self.scrap_scba_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0,2))
+        self.scrap_pjn_btn = ttk.Button(scrap_buttons_frame, text="Scrap PJN", command=lambda: messagebox.showinfo("Info", "Funcionalidad Scrap PJN no implementada."))
+        self.scrap_pjn_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(2,0))
+
+        # Calendario debajo de los botones de scraping
+        cal_frame = ttk.LabelFrame(col2_frame, text="Calendario", padding=5); cal_frame.grid(row=2, column=0, sticky='nsew', pady=5); cal_frame.columnconfigure(0, weight=1); cal_frame.rowconfigure(0, weight=1); self.agenda_cal = Calendar(cal_frame, selectmode='day', date_pattern='y-mm-dd', locale='es_ES'); self.agenda_cal.grid(row=0, column=0, sticky='nsew', padx=5, pady=5); self.agenda_cal.bind("<<CalendarSelected>>", self.actualizar_lista_audiencias); self.agenda_cal.tag_config('audiencia_marcador', background='lightblue', foreground='black')
+        # Botón de agregar audiencia debajo del calendario
+        add_aud_frame = ttk.Frame(col2_frame); add_aud_frame.grid(row=3, column=0, sticky='ew', pady=(5, 0)); self.add_audiencia_btn = ttk.Button(add_aud_frame, text="Agregar Audiencia", command=lambda: self.abrir_dialogo_audiencia(), state=tk.DISABLED); self.add_audiencia_btn.pack(fill=tk.X, padx=10, pady=5)
+
+        # Ajustar rowconfigure de col2_frame para que el calendario no se expanda demasiado y los botones queden visibles
+        col2_frame.rowconfigure(0, weight=0) # Logo
+        col2_frame.rowconfigure(1, weight=0) # Botones Scrap
+        col2_frame.rowconfigure(2, weight=0) # Calendario (no se expande, pero su contenido sí)
+        col2_frame.rowconfigure(3, weight=0) # Botón Agregar Audiencia
+
 
         # --- Columna 3: Casos y Audiencias ---
-        col3_frame = ttk.Frame(crm_main_frame); col3_frame.grid(row=0, column=2, sticky='nsew', padx=(5, 0)); col3_frame.rowconfigure(0, weight=1); col3_frame.rowconfigure(1, weight=1); col3_frame.columnconfigure(0, weight=1); col3_frame.columnconfigure(1, weight=1)
-        case_list_frame = ttk.LabelFrame(col3_frame, text="Casos Cliente", padding="5"); case_list_frame.grid(row=0, column=0, columnspan=2, sticky='nsew', pady=(0, 5)); case_list_frame.columnconfigure(0, weight=1); case_list_frame.rowconfigure(0, weight=1); self.case_tree = ttk.Treeview(case_list_frame, columns=('ID', 'Nro/Año', 'Carátula'), show='headings', selectmode='browse'); self.case_tree.heading('ID', text='ID'); self.case_tree.heading('Nro/Año', text='Nro/Año'); self.case_tree.heading('Carátula', text='Carátula'); self.case_tree.column('ID', width=40, stretch=tk.NO); self.case_tree.column('Nro/Año', width=80, stretch=tk.NO); self.case_tree.column('Carátula', width=250, stretch=tk.YES); case_scrollbar_Y = ttk.Scrollbar(case_list_frame, orient=tk.VERTICAL, command=self.case_tree.yview); self.case_tree.configure(yscrollcommand=case_scrollbar_Y.set); case_scrollbar_x = ttk.Scrollbar(case_list_frame, orient=tk.HORIZONTAL, command=self.case_tree.xview); self.case_tree.configure(xscrollcommand=case_scrollbar_x.set); self.case_tree.grid(row=0, column=0, sticky='nsew'); case_scrollbar_Y.grid(row=0, column=1, sticky='ns'); case_scrollbar_x.grid(row=1, column=0, sticky='ew'); self.case_tree.bind('<<TreeviewSelect>>', self.on_case_select); self.case_tree.bind('<Double-1>', self.open_case_detail_window)
-        case_buttons_frame = ttk.Frame(case_list_frame); case_buttons_frame.grid(row=2, column=0, columnspan=2, sticky='ew', pady=5); self.add_case_btn = ttk.Button(case_buttons_frame, text="Alta", command=lambda: self.open_case_dialog(), state=tk.DISABLED); self.add_case_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5)); self.edit_case_btn = ttk.Button(case_buttons_frame, text="Modificar", command=lambda: self.open_case_dialog(self.selected_case['id'] if self.selected_case else None), state=tk.DISABLED); self.edit_case_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5); self.delete_case_btn = ttk.Button(case_buttons_frame, text="Baja", command=self.delete_case, state=tk.DISABLED); self.delete_case_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5, 0))
-        agenda_list_frame = ttk.LabelFrame(col3_frame, text="Audiencias del Día", padding="5"); agenda_list_frame.grid(row=1, column=0, sticky='nsew', padx=(0,5)); agenda_list_frame.rowconfigure(0, weight=1); agenda_list_frame.columnconfigure(0, weight=1); agenda_cols = ("ID", "Hora", "Detalle", "Caso"); self.audiencia_tree = ttk.Treeview(agenda_list_frame, columns=agenda_cols, show='headings', selectmode="browse"); self.audiencia_tree.heading("ID", text="ID"); self.audiencia_tree.heading("Hora", text="Hora"); self.audiencia_tree.heading("Detalle", text="Detalle"); self.audiencia_tree.heading("Caso", text="Caso"); self.audiencia_tree.column("ID", width=30, stretch=tk.NO); self.audiencia_tree.column("Hora", width=50, stretch=tk.NO); self.audiencia_tree.column("Detalle", width=150, stretch=True); self.audiencia_tree.column("Caso", width=120, stretch=True); agenda_scroll_y = ttk.Scrollbar(agenda_list_frame, orient=tk.VERTICAL, command=self.audiencia_tree.yview); self.audiencia_tree.configure(yscrollcommand=agenda_scroll_y.set); agenda_scroll_y.grid(row=0, column=1, sticky='ns'); self.audiencia_tree.grid(row=0, column=0, sticky='nsew'); self.audiencia_tree.bind('<<TreeviewSelect>>', self.on_audiencia_tree_select); self.audiencia_tree.bind("<Double-1>", self.abrir_link_audiencia_seleccionada)
+        # Renombrar col3_frame a col_casos_audiencias_frame para claridad
+        col_casos_audiencias_frame = ttk.Frame(crm_main_frame)
+        col_casos_audiencias_frame.grid(row=0, column=2, sticky='nsew', padx=(5, 0))
+        col_casos_audiencias_frame.rowconfigure(0, weight=2)  # Lista de Casos (más peso)
+        col_casos_audiencias_frame.rowconfigure(1, weight=1)  # Área de Audiencias (peso estándar)
+        col_casos_audiencias_frame.columnconfigure(0, weight=1) # Columna única para los frames internos
+
+        # Frame para la lista de Casos (ocupa la parte superior de col_casos_audiencias_frame)
+        case_list_frame = ttk.LabelFrame(col_casos_audiencias_frame, text="Casos Cliente", padding="5")
+        case_list_frame.grid(row=0, column=0, sticky='nsew', pady=(0, 5))
+        case_list_frame.columnconfigure(0, weight=1); case_list_frame.rowconfigure(0, weight=1)
+        self.case_tree = ttk.Treeview(case_list_frame, columns=('ID', 'Nro/Año', 'Carátula'), show='headings', selectmode='browse'); self.case_tree.heading('ID', text='ID'); self.case_tree.heading('Nro/Año', text='Nro/Año'); self.case_tree.heading('Carátula', text='Carátula'); self.case_tree.column('ID', width=40, stretch=tk.NO); self.case_tree.column('Nro/Año', width=80, stretch=tk.NO); self.case_tree.column('Carátula', width=250, stretch=tk.YES); case_scrollbar_Y = ttk.Scrollbar(case_list_frame, orient=tk.VERTICAL, command=self.case_tree.yview); self.case_tree.configure(yscrollcommand=case_scrollbar_Y.set); case_scrollbar_x = ttk.Scrollbar(case_list_frame, orient=tk.HORIZONTAL, command=self.case_tree.xview); self.case_tree.configure(xscrollcommand=case_scrollbar_x.set); self.case_tree.grid(row=0, column=0, sticky='nsew'); case_scrollbar_Y.grid(row=0, column=1, sticky='ns'); case_scrollbar_x.grid(row=1, column=0, sticky='ew'); self.case_tree.bind('<<TreeviewSelect>>', self.on_case_select); self.case_tree.bind('<Double-1>', self.open_case_detail_window)
+        case_buttons_frame = ttk.Frame(case_list_frame); case_buttons_frame.grid(row=2, column=0, sticky='ew', pady=5); self.add_case_btn = ttk.Button(case_buttons_frame, text="Alta", command=lambda: self.open_case_dialog(), state=tk.DISABLED); self.add_case_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5)); self.edit_case_btn = ttk.Button(case_buttons_frame, text="Modificar", command=lambda: self.open_case_dialog(self.selected_case['id'] if self.selected_case else None), state=tk.DISABLED); self.edit_case_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5); self.delete_case_btn = ttk.Button(case_buttons_frame, text="Baja", command=self.delete_case, state=tk.DISABLED); self.delete_case_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5, 0))
+
+        # Frame para el área de Audiencias (ocupa la parte inferior de col_casos_audiencias_frame)
+        audiencia_main_area_frame = ttk.Frame(col_casos_audiencias_frame)
+        audiencia_main_area_frame.grid(row=1, column=0, sticky='nsew', pady=(5,0))
+        # Configurar columnas para agenda_list_frame (más ancho) y audiencia_details_frame
+        audiencia_main_area_frame.columnconfigure(0, weight=2) # Lista de audiencias del día
+        audiencia_main_area_frame.columnconfigure(1, weight=1) # Detalles de audiencia
+        audiencia_main_area_frame.rowconfigure(0, weight=1)    # Para que ambos se expandan verticalmente
+
+        agenda_list_frame = ttk.LabelFrame(audiencia_main_area_frame, text="Audiencias del Día", padding="5")
+        agenda_list_frame.grid(row=0, column=0, sticky='nsew', padx=(0,5))
+        agenda_list_frame.rowconfigure(0, weight=1); agenda_list_frame.columnconfigure(0, weight=1)
+        agenda_cols = ("ID", "Hora", "Detalle", "Caso"); self.audiencia_tree = ttk.Treeview(agenda_list_frame, columns=agenda_cols, show='headings', selectmode="browse"); self.audiencia_tree.heading("ID", text="ID"); self.audiencia_tree.heading("Hora", text="Hora"); self.audiencia_tree.heading("Detalle", text="Detalle"); self.audiencia_tree.heading("Caso", text="Caso"); self.audiencia_tree.column("ID", width=30, stretch=tk.NO); self.audiencia_tree.column("Hora", width=50, stretch=tk.NO); self.audiencia_tree.column("Detalle", width=150, stretch=True); self.audiencia_tree.column("Caso", width=120, stretch=True); agenda_scroll_y = ttk.Scrollbar(agenda_list_frame, orient=tk.VERTICAL, command=self.audiencia_tree.yview); self.audiencia_tree.configure(yscrollcommand=agenda_scroll_y.set); agenda_scroll_y.grid(row=0, column=1, sticky='ns'); self.audiencia_tree.grid(row=0, column=0, sticky='nsew'); self.audiencia_tree.bind('<<TreeviewSelect>>', self.on_audiencia_tree_select); self.audiencia_tree.bind("<Double-1>", self.abrir_link_audiencia_seleccionada)
         audiencia_actions_frame = ttk.Frame(agenda_list_frame); audiencia_actions_frame.grid(row=1, column=0, columnspan=2, sticky='ew', pady=5); self.edit_audiencia_btn = ttk.Button(audiencia_actions_frame, text="Editar", command=self.editar_audiencia_seleccionada, state=tk.DISABLED); self.edit_audiencia_btn.pack(side=tk.LEFT, padx=(0, 5), fill=tk.X, expand=True); self.delete_audiencia_btn = ttk.Button(audiencia_actions_frame, text="Eliminar", command=self.eliminar_audiencia_seleccionada, state=tk.DISABLED); self.delete_audiencia_btn.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True); self.share_audiencia_btn = ttk.Button(audiencia_actions_frame, text="Compartir", command=self.mostrar_menu_compartir_audiencia, state=tk.DISABLED); self.share_audiencia_btn.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True); self.open_link_audiencia_btn = ttk.Button(audiencia_actions_frame, text="Abrir Link", command=self.abrir_link_audiencia_seleccionada, state=tk.DISABLED); self.open_link_audiencia_btn.pack(side=tk.LEFT, padx=3, fill=tk.X, expand=True)
-        audiencia_details_frame = ttk.LabelFrame(col3_frame, text="Detalles Completos del Evento", padding="5"); audiencia_details_frame.grid(row=1, column=1, sticky='nsew'); audiencia_details_frame.rowconfigure(0, weight=1); audiencia_details_frame.columnconfigure(0, weight=1); self.audiencia_details_text = tk.Text(audiencia_details_frame, height=5, wrap=tk.WORD, state=tk.DISABLED); audiencia_details_scroll = ttk.Scrollbar(audiencia_details_frame, orient=tk.VERTICAL, command=self.audiencia_details_text.yview); self.audiencia_details_text.configure(yscrollcommand=audiencia_details_scroll.set); audiencia_details_scroll.grid(row=0, column=1, sticky='ns'); self.audiencia_details_text.grid(row=0, column=0, sticky='nsew')
+
+        audiencia_details_frame = ttk.LabelFrame(audiencia_main_area_frame, text="Detalles Completos del Evento", padding="5")
+        audiencia_details_frame.grid(row=0, column=1, sticky='nsew')
+        audiencia_details_frame.rowconfigure(0, weight=1); audiencia_details_frame.columnconfigure(0, weight=1); self.audiencia_details_text = tk.Text(audiencia_details_frame, height=5, wrap=tk.WORD, state=tk.DISABLED); audiencia_details_scroll = ttk.Scrollbar(audiencia_details_frame, orient=tk.VERTICAL, command=self.audiencia_details_text.yview); self.audiencia_details_text.configure(yscrollcommand=audiencia_details_scroll.set); audiencia_details_scroll.grid(row=0, column=1, sticky='ns'); self.audiencia_details_text.grid(row=0, column=0, sticky='nsew')
 
     def on_case_select(self, event):
         selected_items = self.case_tree.selection()
@@ -2306,9 +2349,18 @@ class CRMLegalApp:
     def mostrar_detalles_audiencia(self, audiencia_id):
         audiencia = db.get_audiencia_by_id(audiencia_id); self.limpiar_detalles_audiencia(); self.audiencia_details_text.config(state=tk.NORMAL)
         if audiencia:
+            fecha_db = audiencia.get('fecha', 'N/A')
+            fecha_display = fecha_db
+            if fecha_db != 'N/A':
+                try:
+                    fecha_dt_obj = datetime.datetime.strptime(fecha_db, "%Y-%m-%d")
+                    fecha_display = fecha_dt_obj.strftime("%d-%m-%Y")
+                except ValueError:
+                    pass # Dejar fecha_display como está si el parseo falla
+
             hora = audiencia.get('hora') or "Sin hora"; link = audiencia.get('link') or "Sin link"; rec_activo = "Sí" if audiencia.get('recordatorio_activo') else "No"; rec_minutos = f" ({audiencia.get('recordatorio_minutos', 15)} min antes)" if audiencia.get('recordatorio_activo') else ""
             caso_caratula = audiencia.get('caso_caratula', 'Caso Desc.'); cliente_nombre = audiencia.get('cliente_nombre', 'Cliente Desc.')
-            texto = (f"**Audiencia ID:** {audiencia['id']}\n" f"**Cliente:** {cliente_nombre}\n" f"**Caso:** {caso_caratula} (ID: {audiencia['caso_id']})\n" f"------------------------------------\n" f"**Fecha:** {audiencia.get('fecha', 'N/A')}\n" f"**Hora:** {hora}\n\n" f"**Descripción:**\n{audiencia.get('descripcion', 'N/A')}\n\n" f"**Link:**\n{link}\n\n" f"**Recordatorio:** {rec_activo}{rec_minutos}")
+            texto = (f"**Audiencia ID:** {audiencia['id']}\n" f"**Cliente:** {cliente_nombre}\n" f"**Caso:** {caso_caratula} (ID: {audiencia['caso_id']})\n" f"------------------------------------\n" f"**Fecha:** {fecha_display}\n" f"**Hora:** {hora}\n\n" f"**Descripción:**\n{audiencia.get('descripcion', 'N/A')}\n\n" f"**Link:**\n{link}\n\n" f"**Recordatorio:** {rec_activo}{rec_minutos}")
             self.audiencia_details_text.insert('1.0', texto)
         else: self.audiencia_details_text.insert('1.0', "Detalles no disponibles.")
         self.audiencia_details_text.config(state=tk.DISABLED)
@@ -2427,7 +2479,21 @@ class CRMLegalApp:
         frame = ttk.Frame(dialog, padding="15"); frame.pack(expand=True, fill=tk.BOTH); frame.columnconfigure(1, weight=1); frame.rowconfigure(4, weight=1) # Desc se expande
         
         ttk.Label(frame, text="Caso:").grid(row=0, column=0, sticky=tk.W, pady=3, padx=5); ttk.Label(frame, text=caso_asociado_caratula, wraplength=300).grid(row=0, column=1, sticky=tk.W, pady=3, padx=5)
-        fecha_inicial = datos_audiencia.get('fecha') if is_edit else self.fecha_seleccionada_agenda; ttk.Label(frame, text="*Fecha (YYYY-MM-DD):").grid(row=1, column=0, sticky=tk.W, pady=3, padx=5); fecha_var = tk.StringVar(value=fecha_inicial); entry_fecha = ttk.Entry(frame, textvariable=fecha_var, width=12); entry_fecha.grid(row=1, column=1, sticky=tk.W, pady=3, padx=5)
+
+        ttk.Label(frame, text="*Fecha:").grid(row=1, column=0, sticky=tk.W, pady=3, padx=5)
+        fecha_inicial_dt = None
+        fecha_agenda_str = datos_audiencia.get('fecha') if is_edit else self.fecha_seleccionada_agenda
+        if fecha_agenda_str:
+            try:
+                fecha_inicial_dt = datetime.datetime.strptime(fecha_agenda_str, "%Y-%m-%d").date()
+            except ValueError:
+                print(f"Error parseando fecha inicial para diálogo audiencia: {fecha_agenda_str}")
+
+        entry_fecha = DateEntry(frame, width=12, date_pattern='dd-mm-yyyy', locale='es_ES')
+        if fecha_inicial_dt:
+            entry_fecha.set_date(fecha_inicial_dt)
+        entry_fecha.grid(row=1, column=1, sticky=tk.W, pady=3, padx=5)
+
         ttk.Label(frame, text="Hora (HH:MM):").grid(row=2, column=0, sticky=tk.W, pady=3, padx=5); hora_var = tk.StringVar(value=datos_audiencia.get('hora', '')); entry_hora = ttk.Entry(frame, textvariable=hora_var, width=7); entry_hora.grid(row=2, column=1, sticky=tk.W, pady=3, padx=5)
         ttk.Label(frame, text="Link:").grid(row=3, column=0, sticky=tk.W, pady=3, padx=5); link_var = tk.StringVar(value=datos_audiencia.get('link', '')); ttk.Entry(frame, textvariable=link_var).grid(row=3, column=1, sticky=tk.EW, pady=3, padx=5)
         
@@ -2437,7 +2503,7 @@ class CRMLegalApp:
         rec_frame = ttk.LabelFrame(frame, text="Recordatorio"); rec_frame.grid(row=5, column=0, columnspan=2, sticky=tk.EW, pady=10, padx=5); rec_act_var = tk.IntVar(value=datos_audiencia.get('recordatorio_activo', 0)); rec_chk = ttk.Checkbutton(rec_frame, text="Activar", variable=rec_act_var); rec_chk.pack(side=tk.LEFT, padx=(5, 10)); ttk.Label(rec_frame, text="Minutos antes:").pack(side=tk.LEFT); rec_min_var = tk.IntVar(value=datos_audiencia.get('recordatorio_minutos', 15)); vcmd = (frame.register(self.validate_int_positive), '%P'); rec_spin = ttk.Spinbox(rec_frame, from_=1, to=1440, width=5, textvariable=rec_min_var, validate='key', validatecommand=vcmd); rec_spin.pack(side=tk.LEFT, padx=5)
         
         btn_frame_dialog = ttk.Frame(frame); btn_frame_dialog.grid(row=6, column=0, columnspan=2, pady=15)
-        save_cmd = lambda: self.guardar_audiencia(audiencia_id, caso_asociado_id, fecha_var.get(), hora_var.get(), link_var.get(), desc_text_dialog.get("1.0", tk.END).strip(), rec_act_var.get(), rec_min_var.get(), dialog)
+        save_cmd = lambda: self.guardar_audiencia(audiencia_id, caso_asociado_id, entry_fecha.get_date(), hora_var.get(), link_var.get(), desc_text_dialog.get("1.0", tk.END).strip(), rec_act_var.get(), rec_min_var.get(), dialog)
         ttk.Button(btn_frame_dialog, text="Guardar", command=save_cmd).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame_dialog, text="Cancelar", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
         
@@ -2461,9 +2527,13 @@ class CRMLegalApp:
              else: return None
         return None
 
-    def guardar_audiencia(self, audiencia_id, caso_id, fecha_str, hora_str, link, desc, r_act, r_min, dialog):
-        try: fecha_dt = datetime.datetime.strptime(fecha_str, "%Y-%m-%d"); fecha_db = fecha_dt.strftime("%Y-%m-%d")
-        except ValueError: messagebox.showerror("Validación", "Formato fecha: YYYY-MM-DD.", parent=dialog); return
+    def guardar_audiencia(self, audiencia_id, caso_id, fecha_dt_obj, hora_str, link, desc, r_act, r_min, dialog):
+        # fecha_dt_obj es ahora un objeto datetime.date de DateEntry
+        if not fecha_dt_obj:
+            messagebox.showerror("Validación", "La fecha de la audiencia es obligatoria.", parent=dialog)
+            return
+        fecha_db = fecha_dt_obj.strftime("%Y-%m-%d") # Formatear a YYYY-MM-DD para la BD
+
         hora_db = self.parsear_hora(hora_str)
         if hora_str and not hora_str.isspace() and hora_db is None: messagebox.showerror("Validación", "Formato hora inválido (HH:MM o H).", parent=dialog); return
         if not desc: messagebox.showerror("Validación", "Descripción obligatoria.", parent=dialog); return
