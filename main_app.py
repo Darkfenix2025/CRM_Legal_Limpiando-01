@@ -27,9 +27,14 @@ import shutil
 
 # --- Imports para la ventana Toplevel y sus pestañas ---
 from case_detail_window import CaseDetailWindow
-from seguimiento_ui import SeguimientoTab
-from partes_ui import PartesTab
-from tareas_ui import TareasTab
+# Hay que asegurarse de que los imports de pestañas no usados directamente por main_app pero sí por CaseDetailWindow estén bien.
+# from seguimiento_ui import SeguimientoTab # No se usa directamente en main_app si está en CaseDetailWindow
+# from partes_ui import PartesTab # Idem
+# from tareas_ui import TareasTab # Idem
+# Sin embargo, si CRMLegalApp necesita interactuar con ellas (ej. para recargar datos), podrían necesitarse aquí.
+# Por ahora, asumimos que CaseDetailWindow maneja sus pestañas internamente.
+
+from scba_scraper_window import SCBAScraperWindow # Importar la nueva ventana del scraper
 
 def resource_path(relative_path):
     try:
@@ -99,6 +104,21 @@ class CRMLegalApp:
         self.hilo_bandeja = threading.Thread(target=self.setup_tray_icon, daemon=True); self.hilo_bandeja.start()
         self.root.protocol("WM_DELETE_WINDOW", self.ocultar_a_bandeja)
         
+    def launch_scba_scraper(self):
+        # Verificar si ya hay una ventana de scraper abierta para evitar múltiples instancias
+        # Esto es opcional, pero puede ser una buena práctica.
+        # Por ahora, permitiremos múltiples instancias si el usuario hace clic de nuevo.
+        try:
+            scraper_win = SCBAScraperWindow(self.root)
+            scraper_win.grab_set() # Para hacerla modal respecto a la ventana principal del CRM
+            # scraper_win.focus_force() # No siempre necesario con grab_set
+        except ImportError:
+            messagebox.showerror("Error de Importación", "No se pudo cargar el módulo customtkinter. Verifique la instalación.")
+            print("Error: customtkinter no está instalado o no se pudo importar.")
+        except Exception as e:
+            messagebox.showerror("Error al Abrir Scraper", f"No se pudo abrir la ventana del scraper SCBA:\n{type(e).__name__}: {e}")
+            print(f"Error al instanciar SCBAScraperWindow: {e}")
+
     def verificar_inactividad_casos_periodicamente(self):
         print("[Inactividad Casos] Hilo iniciado.")
         while not self.stop_event.is_set():
@@ -211,7 +231,7 @@ class CRMLegalApp:
         # --- Frame para botones de Scraping ---
         scrap_buttons_frame = ttk.Frame(col2_frame)
         scrap_buttons_frame.grid(row=1, column=0, sticky='ew', pady=5) # Ubicado debajo del logo
-        self.scrap_scba_btn = ttk.Button(scrap_buttons_frame, text="Scrap SCBA", command=lambda: messagebox.showinfo("Info", "Funcionalidad Scrap SCBA no implementada."))
+        self.scrap_scba_btn = ttk.Button(scrap_buttons_frame, text="Scrap SCBA", command=self.launch_scba_scraper)
         self.scrap_scba_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0,2))
         self.scrap_pjn_btn = ttk.Button(scrap_buttons_frame, text="Scrap PJN", command=lambda: messagebox.showinfo("Info", "Funcionalidad Scrap PJN no implementada."))
         self.scrap_pjn_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(2,0))
