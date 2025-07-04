@@ -70,9 +70,79 @@ class CRMLegalApp:
         self.marcar_dias_audiencias_calendario()
 
         self.hilo_recordatorios = threading.Thread(target=self.verificar_recordatorios_periodicamente, daemon=True); self.hilo_recordatorios.start()
+        self.hilo_inactividad = threading.Thread(target=self.verificar_inactividad_casos_periodicamente, daemon=True); self.hilo_inactividad.start() # Nuevo Hilo
         self.hilo_bandeja = threading.Thread(target=self.setup_tray_icon, daemon=True); self.hilo_bandeja.start()
         self.root.protocol("WM_DELETE_WINDOW", self.ocultar_a_bandeja)
         
+    def verificar_inactividad_casos_periodicamente(self):
+        print("[Inactividad Casos] Hilo iniciado.")
+        while not self.stop_event.is_set():
+            current_processing_start_time = time.monotonic()
+            try:
+                casos_a_notificar = self.db_crm.get_cases_for_inactivity_check()
+                for caso in casos_a_notificar:
+                    if self.stop_event.is_set():
+                        break
+
+                    print(f"[Inactividad Casos] ¡Alerta! Caso ID: {caso['id']} ('{caso['caratula']}') ha superado el umbral de inactividad de {caso['inactivity_threshold_days']} días.")
+
+                    # Preparar notificación
+                    titulo = f"Alerta de Inactividad: Caso {caso['id']}"
+                    mensaje = f"El caso '{caso['caratula']}' no ha tenido actividad en más de {caso['inactivity_threshold_days']} días."
+                    app_nombre = "CRM Legal"
+                    icon_path_notif = ""
+                    try:
+                        icon_path_notif = resource_path('assets/icono.ico')
+                        if not os.path.exists(icon_path_notif):
+                            print(f"Advertencia: Icono notificación no encontrado: {icon_path_notif}")
+                            icon_path_notif = ""
+                    except Exception as e:
+                        print(f"Error obteniendo ruta de icono para notificación: {e}")
+                        icon_path_notif = ""
+
+                    # Mostrar notificación
+                    try:
+                        print(f"[Inactividad Casos] Enviando notificación: T='{titulo}', M='{mensaje}'")
+                        plyer.notification.notify(
+                            title=titulo,
+                            message=mensaje,
+                            app_name=app_nombre,
+                            app_icon=icon_path_notif,
+                            timeout=20 # Segundos que la notificación es visible (puede variar por OS)
+                        )
+                        print("[Inactividad Casos] Notificación plyer.notify() llamada.")
+                        # Actualizar timestamp de última notificación de inactividad
+                        self.db_crm.update_case_inactivity_notified(caso['id'])
+                    except NotImplementedError:
+                        print("[Inactividad Casos] Notificación Plyer no soportada en esta plataforma. Usando fallback messagebox.")
+                        # Este fallback es problemático para un hilo en segundo plano,
+                        # pero es mejor que nada si plyer no está disponible.
+                        # Idealmente, se registraría el error y se continuaría.
+                        self.root.after(0, messagebox.showwarning, titulo, mensaje, {'parent': self.root})
+                        self.db_crm.update_case_inactivity_notified(caso['id']) # Intentar actualizar incluso con fallback
+                    except Exception as e_notify:
+                        print(f"[Inactividad Casos] Error durante notificación Plyer: {e_notify}. Usando fallback messagebox.")
+                        self.root.after(0, messagebox.showwarning, titulo, mensaje, {'parent': self.root})
+                        self.db_crm.update_case_inactivity_notified(caso['id']) # Intentar actualizar
+
+            except sqlite3.Error as dbe:
+                print(f"[Inactividad Casos] Error de Base de Datos en hilo: {dbe}")
+                # Esperar más tiempo si hay error de BD antes de reintentar
+                self.stop_event.wait(300) # Esperar 5 minutos
+            except Exception as ex_thread:
+                print(f"[Inactividad Casos] Error inesperado en hilo: {type(ex_thread).__name__}: {ex_thread}")
+                import traceback
+                traceback.print_exc()
+                self.stop_event.wait(120) # Esperar 2 minutos
+
+            # Calcular tiempo de espera para el próximo chequeo (ej. cada hora)
+            processing_duration = time.monotonic() - current_processing_start_time
+            # Chequear cada 1 hora (3600 segundos). Ajustar según necesidad.
+            sleep_interval = max(1.0, 3600.0 - processing_duration)
+            print(f"[Inactividad Casos] Ciclo completado en {processing_duration:.2f}s. Durmiendo por {sleep_interval:.2f}s.")
+            self.stop_event.wait(sleep_interval)
+        print("[Inactividad Casos] Hilo detenido.")
+
     def open_case_detail_window(self, event=None):
         if not self.selected_case: return
         case_id = self.selected_case['id']
@@ -2625,8 +2695,12 @@ class CRMLegalApp:
             try:
                 ahora = datetime.datetime.now(); hoy_str = ahora.strftime("%Y-%m-%d")
                 if not hasattr(self, '_dia_verificacion_recordatorios') or self._dia_verificacion_recordatorios != hoy_str:
-                    print(f"[Recordatorios] Nuevo día ({hoy_str}), reseteando mostrados."); self.recordatorios_mostrados_hoy = set(); self._dia_verificacion_recordatorios = hoy_str
+                    print(f"[Recordatorios] Nuevo día ({hoy_str}), reseteando mostrados.");
+                    self.recordatorios_mostrados_hoy = set() # Para audiencias
+                    # Para tareas, la lógica de "ya notificado hoy" está en get_tareas_para_notificacion
+                    self._dia_verificacion_recordatorios = hoy_str
                 
+                # --- Procesamiento de Recordatorios de Audiencias ---
                 audiencias_a_revisar = db.get_audiencias_con_recordatorio_activo()
                 for aud in audiencias_a_revisar:
                     if self.stop_event.is_set(): break
@@ -2636,26 +2710,36 @@ class CRMLegalApp:
                         tiempo_audiencia = datetime.datetime.strptime(f"{aud['fecha']} {aud['hora']}", "%Y-%m-%d %H:%M"); minutos_antes = aud.get('recordatorio_minutos', 15)
                         tiempo_recordatorio = tiempo_audiencia - datetime.timedelta(minutes=minutos_antes)
                         if tiempo_recordatorio <= ahora < tiempo_audiencia:
-                            print(f"[Recordatorios] ¡Alerta! Audiencia ID: {aud_id} ({aud['hora']}) en {aud['fecha']}.")
-                            self.root.after(0, self.mostrar_recordatorio, aud.copy()); self.recordatorios_mostrados_hoy.add(aud_id)
-                    except ValueError as ve: print(f"[Recordatorios] Error parseando fecha/hora ID {aud_id}: {ve}")
-                    except Exception as e: print(f"[Recordatorios] Error procesando recordatorio ID {aud_id}: {e}")
+                            print(f"[Recordatorios AUD] ¡Alerta! Audiencia ID: {aud_id} ({aud['hora']}) en {aud['fecha']}.")
+                            self.root.after(0, self.mostrar_recordatorio_audiencia, aud.copy()); self.recordatorios_mostrados_hoy.add(aud_id)
+                    except ValueError as ve: print(f"[Recordatorios AUD] Error parseando fecha/hora ID {aud_id}: {ve}")
+                    except Exception as e: print(f"[Recordatorios AUD] Error procesando recordatorio ID {aud_id}: {e}")
+
+                # --- Procesamiento de Recordatorios de Tareas ---
+                tareas_a_notificar = self.db_crm.get_tareas_para_notificacion()
+                for tarea in tareas_a_notificar:
+                    if self.stop_event.is_set(): break
+                    tarea_id = tarea['id']
+                    print(f"[Recordatorios TAREA] ¡Alerta! Tarea ID: {tarea_id} ('{tarea['descripcion'][:50]}...') vence el {tarea['fecha_vencimiento']}.")
+                    self.root.after(0, self.mostrar_recordatorio_tarea, tarea.copy())
+                    self.db_crm.update_fecha_ultima_notificacion_tarea(tarea_id)
+
             except sqlite3.Error as dbe: print(f"[Recordatorios] Error BD en hilo: {dbe}"); self.stop_event.wait(300)
-            except Exception as ex: print(f"[Recordatorios] Error inesperado en hilo: {ex}"); self.stop_event.wait(120)
+            except Exception as ex: print(f"[Recordatorios] Error inesperado en hilo: {type(ex).__name__}: {ex}"); import traceback; traceback.print_exc(); self.stop_event.wait(120)
             
             processing_duration = time.monotonic() - current_processing_start_time
-            sleep_interval = max(1.0, 60.0 - processing_duration)
+            sleep_interval = max(1.0, 60.0 - processing_duration) # Verificar cada minuto
             self.stop_event.wait(sleep_interval)
         print("[Recordatorios] Hilo detenido.")
 
 
-    def mostrar_recordatorio(self, audiencia):
+    def mostrar_recordatorio_audiencia(self, audiencia):
         if not audiencia: return
-        print(f"[Notificación] Mostrando para Audiencia ID: {audiencia.get('id')}")
+        print(f"[Notificación AUD] Mostrando para Audiencia ID: {audiencia.get('id')}")
         hora_audiencia = audiencia.get('hora', 'N/A'); desc_full = audiencia.get('descripcion', ''); desc_alerta = (desc_full.split('\n')[0])[:100] + ('...' if len(desc_full) > 100 else '')
         link = audiencia.get('link', ''); link_corto = (link[:60] + '...') if len(link) > 60 else link; mensaje = f"Próxima audiencia: {desc_alerta}"
         if link_corto: mensaje += f"\nLink: {link_corto}"
-        titulo = f"Recordatorio CRM Legal: {hora_audiencia}"; app_nombre = "CRM Legal"; icon_path_notif = ""
+        titulo = f"Recordatorio Audiencia: {hora_audiencia}"; app_nombre = "CRM Legal"; icon_path_notif = ""
         try:
             icon_path_notif = resource_path('assets/icono.ico')
             if not os.path.exists(icon_path_notif): print(f"Advertencia: Icono notif. no encontrado: {icon_path_notif}"); icon_path_notif = ""
@@ -2664,10 +2748,60 @@ class CRMLegalApp:
         try:
             print(f"[Notificación] Enviando: T='{titulo}', M='{mensaje}', Icono='{icon_path_notif}'")
             plyer.notification.notify(title=titulo, message=mensaje, app_name=app_nombre, app_icon=icon_path_notif, timeout=20)
-            print("[Notificación] Plyer notify() llamado.")
-        except NotImplementedError: print("[Notificación] Plataforma no soportada. Usando fallback."); self.root.after(0, messagebox.showwarning, titulo, mensaje, {'parent': self.root})
-        except Exception as e: print(f"[Notificación] Error Plyer: {e}. Usando fallback."); self.root.after(0, messagebox.showwarning, titulo, mensaje, {'parent': self.root})
+        print("[Notificación AUD] Plyer notify() llamado.")
+    except NotImplementedError: print("[Notificación AUD] Plataforma no soportada. Usando fallback."); self.root.after(0, messagebox.showwarning, titulo, mensaje, {'parent': self.root})
+    except Exception as e: print(f"[Notificación AUD] Error Plyer: {e}. Usando fallback."); self.root.after(0, messagebox.showwarning, titulo, mensaje, {'parent': self.root})
 
+    def mostrar_recordatorio_tarea(self, tarea):
+        if not tarea: return
+        print(f"[Notificación TAREA] Mostrando para Tarea ID: {tarea.get('id')}")
+
+        desc_full = tarea.get('descripcion', 'Tarea sin descripción')
+        desc_alerta = (desc_full.split('\n')[0])[:100] + ('...' if len(desc_full) > 100 else '')
+
+        fecha_venc_str = tarea.get('fecha_vencimiento', 'N/A')
+        try: # Formatear fecha para mostrar
+            fecha_venc_dt = datetime.datetime.strptime(fecha_venc_str, "%Y-%m-%d")
+            fecha_venc_display = fecha_venc_dt.strftime("%d-%m-%Y")
+        except ValueError:
+            fecha_venc_display = fecha_venc_str
+
+        caso_info = ""
+        if tarea.get('caso_id'):
+            caso_caratula = tarea.get('caso_caratula', f"ID {tarea.get('caso_id')}")
+            caso_info = f"\nCaso: {caso_caratula[:50]}"
+            if len(tarea.get('caso_caratula','')) > 50: caso_info += "..."
+
+
+        mensaje = f"Tarea Pendiente: {desc_alerta}\nVence: {fecha_venc_display}{caso_info}"
+        titulo = f"Recordatorio Tarea CRM: {tarea.get('prioridad', 'Normal')}"
+        app_nombre = "CRM Legal"
+        icon_path_notif = ""
+        try:
+            icon_path_notif = resource_path('assets/icono.ico')
+            if not os.path.exists(icon_path_notif):
+                print(f"Advertencia: Icono notif. no encontrado: {icon_path_notif}")
+                icon_path_notif = ""
+        except Exception as e:
+            print(f"Error ruta icono notif.: {e}")
+            icon_path_notif = ""
+
+        try:
+            print(f"[Notificación TAREA] Enviando: T='{titulo}', M='{mensaje}'")
+            plyer.notification.notify(
+                title=titulo,
+                message=mensaje,
+                app_name=app_nombre,
+                app_icon=icon_path_notif,
+                timeout=20 # Segundos
+            )
+            print("[Notificación TAREA] Plyer notify() llamado.")
+        except NotImplementedError:
+            print("[Notificación TAREA] Plataforma no soportada. Usando fallback messagebox.")
+            self.root.after(0, messagebox.showwarning, titulo, mensaje, {'parent': self.root})
+        except Exception as e:
+            print(f"[Notificación TAREA] Error Plyer: {e}. Usando fallback messagebox.")
+            self.root.after(0, messagebox.showwarning, titulo, mensaje, {'parent': self.root})
 
     def ocultar_a_bandeja(self):
         self.root.withdraw(); print("[Bandeja] Ventana ocultada.")

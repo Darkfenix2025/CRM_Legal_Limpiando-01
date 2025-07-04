@@ -58,6 +58,7 @@ def create_tables():
                     inactivity_enabled INTEGER DEFAULT 1,
                     created_at INTEGER,
                     last_activity_timestamp INTEGER,
+                    last_inactivity_notification_timestamp INTEGER, -- Nuevo campo
                     FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE
                 );
             ''')
@@ -373,6 +374,63 @@ def add_case(cliente_id, caratula, numero_expediente="", anio_caratula="", juzga
         finally:
             close_db(conn)
     return new_id
+
+def get_cases_for_inactivity_check():
+    """
+    Obtiene casos que están habilitados para el chequeo de inactividad,
+    cuyo umbral de inactividad ha sido superado desde la última actividad,
+    y que no han sido notificados hoy sobre esta inactividad.
+    """
+    conn = connect_db()
+    cases_to_notify = []
+    if conn:
+        try:
+            cursor = conn.cursor()
+            # Convertir 'hoy' a timestamp mediodía para comparar con last_inactivity_notification_timestamp
+            # Esto es para notificar solo una vez al día por inactividad.
+            today_start_timestamp = int(datetime.datetime.combine(datetime.date.today(), datetime.time.min).timestamp())
+
+
+            # last_activity_timestamp está en segundos. inactivity_threshold_days es en días.
+            # Necesitamos calcular: last_activity_timestamp + (inactivity_threshold_days * 24 * 60 * 60) < current_timestamp
+            current_timestamp = int(time.time())
+
+            cursor.execute(f'''
+                SELECT id, caratula, cliente_id, last_activity_timestamp, inactivity_threshold_days
+                FROM casos
+                WHERE inactivity_enabled = 1
+                  AND (last_activity_timestamp + (inactivity_threshold_days * 24 * 60 * 60)) < {current_timestamp}
+                  AND (last_inactivity_notification_timestamp IS NULL OR last_inactivity_notification_timestamp < {today_start_timestamp})
+            ''')
+            rows = cursor.fetchall()
+            cases_to_notify = [dict(row) for row in rows]
+        except sqlite3.Error as e:
+            print(f"Error al obtener casos para chequeo de inactividad: {e}")
+        finally:
+            close_db(conn)
+    return cases_to_notify
+
+def update_case_inactivity_notified(case_id):
+    """ Actualiza el timestamp de la última notificación de inactividad para un caso. """
+    conn = connect_db()
+    success = False
+    if conn:
+        try:
+            cursor = conn.cursor()
+            timestamp = int(time.time())
+            cursor.execute('''
+                UPDATE casos
+                SET last_inactivity_notification_timestamp = ?
+                WHERE id = ?
+            ''', (timestamp, case_id))
+            conn.commit()
+            success = cursor.rowcount > 0
+        except sqlite3.Error as e:
+            print(f"Error al actualizar timestamp de notificación de inactividad para caso ID {case_id}: {e}")
+            conn.rollback()
+        finally:
+            close_db(conn)
+    return success
 
 def get_cases_by_client(cliente_id):
     conn = connect_db()
