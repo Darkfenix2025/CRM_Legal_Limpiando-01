@@ -2418,7 +2418,7 @@ class CRMLegalApp:
     def _compartir_audiencia_por_whatsapp(self):
         if not self.audiencia_seleccionada_id: return
         try:
-            audiencia = self.db_crm.get_audiencia_by_id(self.selected_audiencia_id)
+            audiencia = self.db_crm.get_audiencia_by_id(self.audiencia_seleccionada_id) # Corregido aquí
             if audiencia:
                 texto = self._formatear_texto_audiencia_para_compartir(audiencia)
                 texto_codificado = urllib.parse.quote(texto, encoding='utf-8')
