@@ -62,7 +62,32 @@ class CRMLegalApp:
         self.audiencia_seleccionada_id = None
         self.recordatorios_mostrados_hoy = set()
         self.stop_event = threading.Event()
-        self.logo_image_tk = None
+        self.logo_image_tk = None # Para el logo en la columna central
+
+        # Widgets que antes estaban en el Notebook principal y ahora se eliminan de CRMLegalApp
+        # self.main_notebook = None
+        # self.case_details_tab = None
+        # self.documents_tab = None
+        # self.tareas_tab_frame = None # Estos ya eran frames de pestañas externas
+        # self.partes_tab_frame = None
+        # self.seguimiento_tab_frame = None
+
+        # Labels y Text widgets de la antigua pestaña de detalles del caso (ahora en DetallesTab dentro de CaseDetailWindow)
+        # self.caratula_lbl = None
+        # self.expediente_lbl = None
+        # self.juzgado_lbl = None
+        # self.jurisdiccion_lbl = None
+        # self.etapa_lbl = None
+        # self.case_detail_tags_lbl = None
+        # self.notas_text = None
+        # self.inactivity_enabled_lbl = None
+        # self.inactivity_threshold_lbl = None
+
+        # Widgets de la antigua pestaña de documentos (ahora en DocumentosTab dentro de CaseDetailWindow)
+        # self.folder_path_lbl = None
+        # self.select_folder_btn = None
+        # self.open_folder_btn = None
+        # self.document_tree = None
 
         self.create_widgets()
         self.load_clients()
@@ -1244,105 +1269,40 @@ class CRMLegalApp:
                 self.selected_case = None
             
             if self.selected_case:
-                # print(f"Caso seleccionado ID: {self.selected_case['id']}")
-                print(f"[MainApp Debug] Caso seleccionado para Partes: {self.selected_case['id'] if self.selected_case else 'None'}") # DEBUG
-                self.display_case_details(self.selected_case) # Muestra detalles básicos
-                self.load_case_documents(self.selected_case.get('ruta_carpeta', '')) # Carga documentos
+                print(f"[MainApp] Caso seleccionado ID: {self.selected_case['id']}")
                 self.enable_case_buttons()
-                self.enable_detail_tabs_for_case() # Habilita pestañas
-                
-                # Cargar datos en pestañas modulares
-                if hasattr(self, 'seguimiento_tab_frame'):
-                    self.seguimiento_tab_frame.load_actividades(self.selected_case['id'])
-                    self.seguimiento_tab_frame.set_add_button_state(None) 
-                if hasattr(self, 'partes_tab_frame'):
-                    self.partes_tab_frame.load_partes(self.selected_case['id'])
-                    self.partes_tab_frame.set_add_button_state(None)
+                # Ya no se cargan detalles ni documentos aquí.
+                # Ya no se habilitan pestañas aquí.
             else: 
-                print("[MainApp Debug] Ningún caso seleccionado para Partes.") # DEBUG
-                self.selected_case = None
-                self.clear_case_details() # Limpia todo lo relacionado al caso
-                if hasattr(self, 'partes_tab_frame'): # NUEVO
-                    self.partes_tab_frame.load_partes(None)
-                    self.partes_tab_frame.set_add_button_state(None) # Esto llama a _update_action_buttons_state
+                print("[MainApp] Selección de caso inválida o caso no encontrado.")
+                self.selected_case = None # Asegurarse de que esté None
+                self.clear_case_details() # Deshabilita botones de caso y actualiza add_audiencia_btn
 
-        else: 
+        else: # No hay items seleccionados en case_tree
             self.selected_case = None
-            self.clear_case_details() # Limpia todo lo relacionado al caso
-            self.update_add_audiencia_button_state()
-            if hasattr(self, 'partes_tab_frame'): # NUEVO
-                self.partes_tab_frame.load_partes(None)
-                self.partes_tab_frame.set_add_button_state(None) # Esto llama a _update_action_buttons_state
-        
-        if self.selected_case:
-            # ... (lógica existente para detalles, documentos, botones, otras pestañas) ...
-            if hasattr(self, 'tareas_tab_frame'):
-                self.tareas_tab_frame.load_tareas(self.selected_case['id'])
-                self.tareas_tab_frame.set_add_button_state()
-        else: # No hay caso seleccionado o la selección falló
-            # ... (lógica existente para limpiar detalles, otras pestañas) ...
-            if hasattr(self, 'tareas_tab_frame'):
-                self.tareas_tab_frame.load_tareas(None)
-                self.tareas_tab_frame.set_add_button_state()
+            self.clear_case_details() # Deshabilita botones de caso y actualiza add_audiencia_btn
 
+        # Actualizar siempre el estado del botón de agregar audiencia basado en self.selected_case
+        self.update_add_audiencia_button_state()
+        # No es necesario actualizar tareas_tab_frame aquí ya que está en CaseDetailWindow.
         self.root.update_idletasks() 
         #print(f"[DEBUG on_case_select] ANTES de update_add_audiencia_button_state -> self.selected_case: {self.selected_case}")
         self.update_add_audiencia_button_state()
 
-    def display_case_details(self, case_data):
-        if case_data:
-            self.caratula_lbl.config(text=case_data.get('caratula', 'N/A'))
-            exp = f"{case_data.get('numero_expediente', 'S/N')}/{case_data.get('anio_caratula', 'S/A')}"
-            self.expediente_lbl.config(text=exp)
-            self.juzgado_lbl.config(text=case_data.get('juzgado', 'N/A'))
-            self.jurisdiccion_lbl.config(text=case_data.get('jurisdiccion', 'N/A'))
-            self.etapa_lbl.config(text=case_data.get('etapa_procesal', 'N/A'))
-
-            # --- MOSTRAR ETIQUETAS DEL CASO ---
-            nombres_etiquetas_caso = []
-            case_id_for_tags = case_data.get('id')
-            if case_id_for_tags:
-                etiquetas_obj = db.get_etiquetas_de_caso(case_id_for_tags)
-                nombres_etiquetas_caso = [e['nombre_etiqueta'] for e in etiquetas_obj]
-            
-            if hasattr(self, 'case_detail_tags_lbl'):
-                self.case_detail_tags_lbl.config(text=", ".join(nombres_etiquetas_caso).capitalize() if nombres_etiquetas_caso else "Ninguna")
-            # --- FIN MOSTRAR ETIQUETAS DEL CASO ---
-
-            self.notas_text.config(state=tk.NORMAL); self.notas_text.delete('1.0', tk.END); self.notas_text.insert('1.0', case_data.get('notas', '')); self.notas_text.config(state=tk.DISABLED)
-            inactivity_enabled = "Sí" if case_data.get('inactivity_enabled') else "No"
-            inactivity_threshold = case_data.get('inactivity_threshold_days', 30)
-            self.inactivity_enabled_lbl.config(text=inactivity_enabled); self.inactivity_threshold_lbl.config(text=str(inactivity_threshold))
-            
-            # Actualizar info de carpeta en pestaña de documentos
-            folder_path = case_data.get('ruta_carpeta', '');
-            self.folder_path_lbl.config(text=folder_path if folder_path else "Carpeta no asignada")
-            self.select_folder_btn.config(state=tk.NORMAL)
-            self.open_folder_btn.config(state=tk.NORMAL if folder_path and os.path.isdir(folder_path) else tk.DISABLED)
-        else:
-            self.clear_case_details()
-
+    # def display_case_details(self, case_data):
+    #     # Esta función ya no es necesaria aquí, los detalles se muestran en CaseDetailWindow.
+    #     pass
 
     def clear_case_details(self):
-        self.caratula_lbl.config(text=""); self.expediente_lbl.config(text=""); self.juzgado_lbl.config(text="")
-        self.jurisdiccion_lbl.config(text=""); self.etapa_lbl.config(text="")
-
-        self.etapa_lbl.config(text="")
-
-        # --- LIMPIAR LABEL DE ETIQUETAS DEL CASO ---
-        if hasattr(self, 'case_detail_tags_lbl'):
-            self.case_detail_tags_lbl.config(text="")
-        # --- FIN LIMPIAR LABEL ---
-
-        self.notas_text.config(state=tk.NORMAL); self.notas_text.delete('1.0', tk.END); self.notas_text.config(state=tk.DISABLED)
-        self.inactivity_enabled_lbl.config(text=""); self.inactivity_threshold_lbl.config(text="")
-        
-        # Limpiar y deshabilitar lo relacionado a documentos
-        self.folder_path_lbl.config(text="Selecciona un caso para ver/asignar carpeta");
-        self.select_folder_btn.config(state=tk.DISABLED); self.open_folder_btn.config(state=tk.DISABLED)
-        self.clear_document_list()
+        # Esta función ya no limpia los widgets de detalles del caso de la ventana principal.
+        # Solo deshabilita botones de caso si es necesario, lo cual ya se hace en on_case_select.
+        # La limpieza de las listas de documentos, tareas, etc., ahora es responsabilidad
+        # de CaseDetailWindow o se maneja al no haber un caso seleccionado.
+        # Por ahora, la principal tarea es deshabilitar botones de caso.
         self.disable_case_buttons()
-        self.disable_detail_tabs_for_case() # Esto también limpia las pestañas modulares
+        # También nos aseguramos de que el botón de agregar audiencia se actualice.
+        self.update_add_audiencia_button_state()
+
 
     def enable_case_buttons(self):
         self.edit_case_btn.config(state=tk.NORMAL); self.delete_case_btn.config(state=tk.NORMAL)
@@ -1350,37 +1310,145 @@ class CRMLegalApp:
     def disable_case_buttons(self):
         self.edit_case_btn.config(state=tk.DISABLED); self.delete_case_btn.config(state=tk.DISABLED)
 
-    def enable_detail_tabs_for_case(self):
-        self.main_notebook.tab(self.case_details_tab, state='normal')
-        self.main_notebook.tab(self.documents_tab, state='normal')
-        if hasattr(self, 'partes_tab_frame'):
-            self.main_notebook.tab(self.partes_tab_frame, state='normal')
-        if hasattr(self, 'seguimiento_tab_frame'):
-            self.main_notebook.tab(self.seguimiento_tab_frame, state='normal')
-        if hasattr(self, 'tareas_tab_frame'):
-            self.main_notebook.tab(self.tareas_tab_frame, state='normal')
-        
-        if self.selected_case: # Al seleccionar un caso, por defecto ir a Detalles del Caso
-            self.main_notebook.select(self.case_details_tab)
+    # enable_detail_tabs_for_case y disable_detail_tabs_for_case ya no son necesarios
+    # porque el notebook principal ha sido eliminado.
 
-    def disable_detail_tabs_for_case(self):
-        self.main_notebook.tab(self.case_details_tab, state='disabled')
-        self.main_notebook.tab(self.documents_tab, state='disabled')
-        
-        if hasattr(self, 'partes_tab_frame'):
-            self.main_notebook.tab(self.partes_tab_frame, state='disabled')
-            if hasattr(self.partes_tab_frame, 'load_partes'): # Seguridad adicional
-                self.partes_tab_frame.load_partes(None) 
-        
-        if hasattr(self, 'seguimiento_tab_frame'):
-            self.main_notebook.tab(self.seguimiento_tab_frame, state='disabled')
-            if hasattr(self.seguimiento_tab_frame, 'load_actividades'): # Seguridad adicional
-                self.seguimiento_tab_frame.load_actividades(None)
+# --- MÉTODOS RELACIONADOS CON DOCUMENTOS (AHORA PARA USO DE DOCUMENTOS_TAB_UI) ---
+# Estos métodos son llamados por DocumentosTab y operan sobre el treeview que se les pasa.
 
-        if hasattr(self, 'tareas_tab_frame'):
-            self.main_notebook.tab(self.tareas_tab_frame, state='disabled')
-            if hasattr(self.tareas_tab_frame, 'load_tareas'):
-                self.tareas_tab_frame.load_tareas(None) 
+    def clear_document_list_for_tab(self, document_tree_widget):
+        """Limpia un treeview de documentos específico (usado por DocumentosTab)."""
+        if document_tree_widget:
+            for i in document_tree_widget.get_children():
+                document_tree_widget.delete(i)
+
+    def load_case_documents_for_tab(self, document_tree_widget, folder_path, case_data_for_tab):
+        """Carga documentos en un treeview específico (usado por DocumentosTab)."""
+        if not document_tree_widget or not case_data_for_tab:
+            return
+
+        self.clear_document_list_for_tab(document_tree_widget)
+        
+        # current_folder_for_display = folder_path # No es necesario aquí, se maneja en DocumentosTab
+        if folder_path and os.path.isdir(folder_path):
+            try:
+                # Botón para subir un nivel
+                # case_data_for_tab es el case_data específico para la instancia de CaseDetailWindow
+                if folder_path != case_data_for_tab.get('ruta_carpeta'):
+                    parent_dir = os.path.dirname(folder_path)
+                    root_case_folder = case_data_for_tab.get('ruta_carpeta', '')
+                    if parent_dir and os.path.isdir(parent_dir) and parent_dir != folder_path and \
+                       (parent_dir == root_case_folder or parent_dir.startswith(root_case_folder + os.sep)):
+                        document_tree_widget.insert('', 0, values=("[..] Subir Nivel", "Carpeta", ""), iid=parent_dir, tags=('parent_folder',))
+
+                for entry in sorted(os.scandir(folder_path), key=lambda e: e.name.lower()):
+                    if self.stop_event.is_set(): break
+                    if entry.is_dir():
+                        # ... (lógica de inserción de directorio igual que antes, usando document_tree_widget)
+                        try:
+                            stat_info = entry.stat()
+                            mod_time = datetime.datetime.fromtimestamp(stat_info.st_mtime).strftime('%Y-%m-%d %H:%M')
+                            document_tree_widget.insert('', tk.END, values=(f"[CARPETA] {entry.name}", "Carpeta", mod_time), iid=entry.path, tags=('folder',))
+                        except OSError as e: print(f"Warn: No se pudo leer info de carpeta {entry.path}: {e}")
+                        except Exception as e: print(f"Error procesando carpeta {entry.path}: {e}")
+                    elif entry.is_file():
+                        # ... (lógica de inserción de archivo igual que antes, usando document_tree_widget)
+                        try:
+                            stat_info = entry.stat(); size_bytes = stat_info.st_size
+                            if size_bytes < 1024: size_display = f"{size_bytes} B"
+                            elif size_bytes < 1024**2: size_display = f"{size_bytes/1024:.1f} KB"
+                            # ... (resto de la lógica de tamaño) ...
+                            else: size_display = f"{size_bytes/1024**3:.1f} GB"
+                            mod_time = datetime.datetime.fromtimestamp(stat_info.st_mtime).strftime('%Y-%m-%d %H:%M')
+                            document_tree_widget.insert('', tk.END, values=(entry.name, size_display, mod_time), iid=entry.path, tags=('file',))
+                        except OSError as e: print(f"Warn: No se pudo leer info de archivo {entry.path}: {e}")
+                        except Exception as e: print(f"Error procesando archivo {entry.path}: {e}")
+            except OSError as e:
+                document_tree_widget.insert('', tk.END, values=(f"Error al leer dir: {e}", "", ""), iid="error_dir_listing")
+            except Exception as e:
+                 document_tree_widget.insert('', tk.END, values=("Error inesperado al listar", "", ""), iid="error_unexpected_listing")
+        elif case_data_for_tab: # Si no hay folder_path pero sí hay case_data
+            document_tree_widget.insert('', tk.END, values=("Carpeta no asignada o no encontrada.", "", ""), iid="no_folder_or_invalid")
+
+
+    def select_case_folder_from_tab(self, case_id_for_tab, current_folder_path):
+        """Permite seleccionar una carpeta para el caso, llamado desde DocumentosTab."""
+        # Esta función podría mantenerse si DocumentosTab la necesita para actualizar la BD
+        # y luego recargar sus propios documentos.
+        # Devuelve la nueva ruta seleccionada o None.
+        initial_dir = current_folder_path or os.path.expanduser("~")
+        folder_selected = filedialog.askdirectory(initialdir=initial_dir, title="Seleccionar Carpeta de Documentos del Caso", parent=self.root) # Parent podría ser la Toplevel
+        if folder_selected:
+            if db.update_case_folder(case_id_for_tab, folder_selected):
+                # La actualización en self.selected_case (si es el mismo) se maneja al recargar
+                messagebox.showinfo("Éxito", "Carpeta de documentos asignada con éxito.", parent=self.root)
+                return folder_selected
+            else:
+                messagebox.showerror("Error", "No se pudo guardar la ruta de la carpeta en la BD.", parent=self.root)
+        return None
+
+
+    def open_case_folder_from_tab(self, case_data_for_tab):
+        """Abre la carpeta del caso, llamado desde DocumentosTab."""
+        if not case_data_for_tab or not case_data_for_tab.get('ruta_carpeta'):
+            messagebox.showwarning("Advertencia", "Caso sin carpeta asignada.", parent=self.root) # Parent podría ser Toplevel
+            return
+        folder_path = case_data_for_tab.get('ruta_carpeta')
+        # ... (resto de la lógica de open_case_folder igual que antes) ...
+        if folder_path and os.path.isdir(folder_path):
+            try:
+                if sys.platform == "win32": os.startfile(folder_path)
+                elif sys.platform == "darwin": subprocess.call(["open", folder_path])
+                else: subprocess.call(["xdg-open", folder_path])
+            except Exception as e: messagebox.showerror("Error", f"No se pudo abrir la carpeta:\n{e}", parent=self.root)
+        else:
+            messagebox.showwarning("Advertencia", "Ruta de carpeta inválida.", parent=self.root)
+
+
+    def on_document_double_click_from_tab(self, event, document_tree_widget, case_id_for_tab, case_data_for_tab):
+        """Maneja doble clic en el treeview de documentos de una pestaña."""
+        if not document_tree_widget: return
+        item_id = document_tree_widget.identify_row(event.y)
+        if not item_id: return
+        
+        path_to_open = item_id
+        item_tags = document_tree_widget.item(item_id, "tags")
+
+        if 'file' in item_tags and os.path.isfile(path_to_open):
+            # ... (lógica de abrir archivo y registrar actividad igual que antes) ...
+            try:
+                if sys.platform == "win32": os.startfile(path_to_open)
+                # ... (resto de plataformas) ...
+                else: subprocess.call(["xdg-open", path_to_open])
+                if case_id_for_tab:
+                    # ... (registrar actividad) ...
+                    file_name = os.path.basename(path_to_open)
+                    self._save_new_actividad(
+                        caso_id=case_id_for_tab,
+                        tipo_actividad="Documento Abierto (Toplevel)", # Indicar que fue desde Toplevel
+                        descripcion=f"Se abrió el documento: {file_name}",
+                        referencia_doc=file_name
+                    )
+            except Exception as e: messagebox.showerror("Error al abrir archivo", f"No se pudo abrir:\n{e}", parent=self.root)
+
+        elif ('folder' in item_tags or 'parent_folder' in item_tags) and os.path.isdir(path_to_open):
+            # Recargar la lista de documentos EN LA PESTAÑA
+            # Esto requiere que DocumentosTab tenga un método para recargar su propio treeview.
+            # Por ahora, la lógica de carga está en load_case_documents_for_tab, que DocumentosTab puede llamar.
+            # DocumentosTab deberá llamar a self.app_controller.load_case_documents_for_tab(self.document_tree, path_to_open, self.case_data)
+            # y actualizar su propia etiqueta de ruta.
+            # Esta es una llamada indirecta. DocumentosTab debería tener su propio método para esto.
+            # Para simplificar aquí, asumimos que DocumentosTab maneja su recarga.
+            # La instancia de DocumentosTab que disparó el evento debería manejar la recarga.
+             # En una implementación ideal, el DocumentosTab se pasaría a sí mismo o su treeview
+             # para que este método sepa qué actualizar.
+             # Por ahora, este método en CRMLegalApp no puede recargar directamente el treeview de DocumentosTab
+             # sin una referencia a él. La pestaña DocumentosTab es quien debe invocar la recarga.
+            print(f"Navegando a carpeta (en Toplevel): {path_to_open}. DocumentosTab debe recargar.")
+            # En DocumentosTab, el on_document_double_click debería hacer:
+            # if 'folder' in item_tags: self.load_case_documents(path_to_open)
+
+# --- FIN MÉTODOS DOCUMENTOS PARA PESTAÑA ---
 
 # --- NUEVOS MÉTODOS PARA DIÁLOGOS Y LÓGICA DE TAREAS ---
 

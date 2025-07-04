@@ -35,31 +35,40 @@ class CaseDetailWindow(tk.Toplevel):
         # --- Crear e instanciar cada pestaña ---
         
         # Pestaña 0: Detalles
-        self.detalles_tab = DetallesTab(self.notebook, self.app_controller)
+        # DetallesTab necesita case_data para la carga inicial.
+        self.detalles_tab = DetallesTab(self.notebook, self.app_controller, self.case_data)
         self.notebook.add(self.detalles_tab, text="Detalles del Caso")
-        self.detalles_tab.load_details(self.case_data)
+        # self.detalles_tab.load_details(self.case_data) # Se llama desde el __init__ de DetallesTab ahora
 
         # Pestaña 1: Documentación
+        # DocumentosTab necesita case_data para la ruta inicial de la carpeta.
         self.documentos_tab = DocumentosTab(self.notebook, self.app_controller, self.case_data)
         self.notebook.add(self.documentos_tab, text="Documentación")
+        # La carga inicial de documentos se hace en el __init__ de DocumentosTab
 
         # Pestaña 2: Tareas/Plazos
-        self.tareas_tab = TareasTab(self.notebook, self.app_controller)
+        self.tareas_tab = TareasTab(self.notebook, self.app_controller) # app_controller para diálogos
         self.notebook.add(self.tareas_tab, text="Tareas/Plazos")
-        self.tareas_tab.load_tareas(self.case_id)
-        self.tareas_tab.set_add_button_state()
+        if self.case_id: # Solo cargar si hay case_id (debería haberlo si case_data existe)
+            self.tareas_tab.load_tareas(self.case_id)
+            self.tareas_tab.set_add_button_state()
 
         # Pestaña 3: Partes
-        self.partes_tab = PartesTab(self.notebook, self.app_controller)
+        self.partes_tab = PartesTab(self.notebook, self.app_controller) # app_controller para diálogos
         self.notebook.add(self.partes_tab, text="Partes")
-        self.partes_tab.load_partes(self.case_id)
-        self.partes_tab.set_add_button_state(None)
+        if self.case_id:
+            self.partes_tab.load_partes(self.case_id)
+            self.partes_tab.set_add_button_state(None)
 
         # Pestaña 4: Seguimiento
-        self.seguimiento_tab = SeguimientoTab(self.notebook, self.app_controller)
+        self.seguimiento_tab = SeguimientoTab(self.notebook, self.app_controller) # app_controller para diálogos
         self.notebook.add(self.seguimiento_tab, text="Seguimiento")
-        self.seguimiento_tab.load_actividades(self.case_id)
-        self.seguimiento_tab.set_add_button_state(None)
+        if self.case_id:
+            self.seguimiento_tab.load_actividades(self.case_id)
+            self.seguimiento_tab.set_add_button_state(None)
+
+        # Considerar seleccionar la primera pestaña por defecto si es necesario
+        self.notebook.select(self.detalles_tab)
 
     # -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
     # 2. NUEVO MÉTODO PARA SELECCIONAR UNA PESTAÑA
@@ -67,10 +76,10 @@ class CaseDetailWindow(tk.Toplevel):
         """Selecciona una pestaña del notebook por su índice."""
         try:
             self.notebook.select(tab_index)
-        except tk.TclError:
+        except tk.TclError: # Podría ser si el índice está fuera de rango o el widget no existe
             print(f"Error: No se pudo seleccionar la pestaña con índice {tab_index}")
     # -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
 
     def on_close(self):
-        self.app_controller.on_case_window_close(self.case_id)
+        self.app_controller.on_case_window_close(self.case_id) # Notificar al controlador principal
         self.destroy()

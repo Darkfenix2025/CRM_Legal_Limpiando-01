@@ -2,10 +2,13 @@ import tkinter as tk
 from tkinter import ttk
 
 class DetallesTab(ttk.Frame):
-    def __init__(self, parent, app_controller):
+    def __init__(self, parent, app_controller, case_data): # case_data añadido
         super().__init__(parent, padding="10")
         self.app_controller = app_controller
+        self.case_data = case_data # Guardar case_data
         self.create_widgets()
+        if self.case_data: # Cargar detalles si case_data está disponible
+            self.load_details(self.case_data)
 
     def create_widgets(self):
         self.columnconfigure(1, weight=1)
